@@ -115,7 +115,6 @@ func fromLuaTable(ctx *C.lua_State) (goVal interface{}, err error) {
 			if C.lua_isinteger(ctx, -2) != 0 {
 				idx := int(C.lua_tointegerx(ctx, -2, (*C.int)(unsafe.Pointer(nil))))
 				if idx != i {
-					maybeArr = false
 					goto FOR_MAP
 				}
 				if val, err = fromLuaValue(ctx); err != nil {
@@ -127,25 +126,31 @@ func fromLuaTable(ctx *C.lua_State) (goVal interface{}, err error) {
 				C.popN(ctx, 1) // [ ... table key ]
 				i += 1
 				continue
-			} else {
-				maybeArr = false
-				goto FOR_MAP
 			}
 		}
 FOR_MAP:
+		maybeArr = false
 		// [ ... table key val ]
 		if val, err = fromLuaValue(ctx); err != nil {
 			C.popN(ctx, 2) // [ ... talbe ]
 			return
 		}
 		C.popN(ctx, 1) // [ ... table key ]
-		key := C.lua_tolstring(ctx, -1, (*C.size_t)(unsafe.Pointer(nil)))
-		if unsafe.Pointer(key) == nil {
+		var key string
+		switch C.lua_type(ctx, -1) {
+		case C.LUA_TNUMBER:
+			idx := int(C.lua_tointegerx(ctx, -1, (*C.int)(unsafe.Pointer(nil))))
+			key = fmt.Sprintf("%d", idx)
+		case C.LUA_TSTRING:
+			var length C.size_t
+			s := C.lua_tolstring(ctx, -1, &length)
+			key = *(toString(s, int(length)))
+		default:
 			err = fmt.Errorf("key of string type expected")
 			C.popN(ctx, 1) // [ ... table ]
 			return
 		}
-		res[C.GoString(key)] = val
+		res[key] = val
 	}
 	if maybeArr {
 		if len(arr) == 0 {
