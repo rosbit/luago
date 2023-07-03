@@ -231,6 +231,10 @@ func pushStruct(ctx *C.lua_State, structVar reflect.Value) {
 		name := structT.Field(i).Name
 		fv := structE.FieldByName(name)
 
+		if !fv.CanInterface() {
+			continue
+		}
+
 		lName := lowerFirst(name)
 		pushString(ctx, lName)            // [ obj lName ]
 		pushLuaValue(ctx, fv.Interface()) // [ obj lName fv ]
