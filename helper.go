@@ -31,10 +31,7 @@ func LoadFileFromCache(path string, vars map[string]interface{}) (ctx *LuaContex
 	luaC, ok := luaCtxCache[path]
 
 	if !ok {
-		if ctx, err = NewContext(); err != nil {
-			return
-		}
-		if err = ctx.LoadFile(path, vars); err != nil {
+		if ctx, err = createLuaContext(path, vars); err != nil {
 			return
 		}
 		fi, _ := os.Stat(path)
@@ -52,12 +49,24 @@ func LoadFileFromCache(path string, vars map[string]interface{}) (ctx *LuaContex
 		return
 	}
 	mt := fi.ModTime()
-	if luaC.mt.Before(mt) {
-		if err = luaC.luavm.LoadFile(path, vars); err != nil {
+	if !luaC.mt.Equal(mt) {
+		if ctx, err = createLuaContext(path, vars); err != nil {
 			return
 		}
+		luaC.luavm = ctx
 		luaC.mt = mt
+	} else {
+		ctx = luaC.luavm
 	}
-	ctx = luaC.luavm
+	return
+}
+
+func createLuaContext(path string, vars map[string]interface{}) (ctx *LuaContext, err error) {
+	if ctx, err = NewContext(); err != nil {
+		return
+	}
+	if err = ctx.LoadFile(path, vars); err != nil {
+		return
+	}
 	return
 }

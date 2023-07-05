@@ -28,6 +28,7 @@ import (
 
 type LuaContext struct {
 	c *C.lua_State
+	env map[string]interface{}
 }
 
 func NewContext() (*LuaContext, error) {
@@ -45,6 +46,7 @@ func NewContext() (*LuaContext, error) {
 
 func freeLuaContext(ctx *LuaContext) {
 	// fmt.Printf("context freed\n")
+	ctx.env = nil
 	c := ctx.c
 	C.lua_close(c)
 }
@@ -55,6 +57,7 @@ func loadPreludeModules(ctx *C.lua_State) {
 }
 
 func (ctx *LuaContext) LoadScript(script string, env map[string]interface{}) (err error) {
+	ctx.env = env
 	c := ctx.c
 	setEnv(c, env)
 
@@ -69,6 +72,7 @@ func (ctx *LuaContext) LoadScript(script string, env map[string]interface{}) (er
 }
 
 func (ctx *LuaContext) LoadFile(scriptFile string, env map[string]interface{}) (err error) {
+	ctx.env = env
 	c := ctx.c
 	setEnv(c, env)
 
