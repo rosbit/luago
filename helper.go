@@ -24,7 +24,7 @@ func InitCache() {
 	luaCtxCache = make(map[string]*luaCtx)
 }
 
-func LoadFileFromCache(path string, vars map[string]interface{}) (ctx *LuaContext, err error) {
+func LoadFileFromCache(path string, vars map[string]interface{}) (ctx *LuaContext, existing bool, err error) {
 	lock.Lock()
 	defer lock.Unlock()
 
@@ -56,6 +56,7 @@ func LoadFileFromCache(path string, vars map[string]interface{}) (ctx *LuaContex
 		luaC.luavm = ctx
 		luaC.mt = mt
 	} else {
+		existing = true
 		ctx = luaC.luavm
 	}
 	return
