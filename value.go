@@ -93,7 +93,9 @@ func fromLuaValue(ctx *C.lua_State) (goVal interface{}, err error) {
 	// case C.LUA_TUSERDATA:
 	// case LUA_TFUNCTION:
 	// case LUA_TTHREAD:
-	// case LUA_TLIGHTUSERDATA:
+	case C.LUA_TLIGHTUSERDATA:
+		goVal = (unsafe.Pointer)(C.lua_touserdata(ctx, -1))
+		return
 	default:
 		err = fmt.Errorf("unsupporting type")
 		return

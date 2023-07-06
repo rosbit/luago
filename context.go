@@ -40,8 +40,38 @@ func NewContext() (*LuaContext, error) {
 	c := &LuaContext {
 		c: ctx,
 	}
+	bindContext(c)
 	runtime.SetFinalizer(c, freeLuaContext)
 	return c, nil
+}
+
+var _env = "go-lua"
+func bindContext(ctx *LuaContext) {
+	c := ctx.c
+	C.pushGlobal(c) // [ global ]
+	pushString(c, _env) // [ global env ]
+	C.lua_pushlightuserdata(c, unsafe.Pointer(ctx)) // [ global env ctx ]
+	C.lua_rawset(c, -3) // [ global ] with global[env] = v
+	C.popN(c, 1) // [ ]
+}
+
+func getContext(c *C.lua_State) (*LuaContext, error) {
+	C.pushGlobal(c) // [ global ]
+	pushString(c, _env) // [ global env ]
+	C.lua_rawget(c, -2) // [ global result ]
+	res, err := fromLuaValue(c)
+	defer C.popN(c, 2) // [ ]
+
+	if err != nil {
+		return nil, err
+	}
+	if res == nil {
+		return nil, fmt.Errorf("no context")
+	}
+	if ctx, ok := res.(unsafe.Pointer); ok {
+		return (*LuaContext)(ctx), nil
+	}
+	return nil, fmt.Errorf("unknown type")
 }
 
 func freeLuaContext(ctx *LuaContext) {
