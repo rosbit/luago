@@ -44,7 +44,7 @@ func NewContext() (*LuaContext, error) {
 }
 
 func freeLuaContext(ctx *LuaContext) {
-	fmt.Printf("context freed\n")
+	// fmt.Printf("context freed\n")
 	c := ctx.c
 	ptrs.delPtrStore((uintptr(unsafe.Pointer(c))))
 	C.lua_close(c)
