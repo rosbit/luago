@@ -28,7 +28,6 @@ import (
 
 type LuaContext struct {
 	c *C.lua_State
-	env map[string]interface{}
 }
 
 func NewContext() (*LuaContext, error) {
@@ -40,44 +39,14 @@ func NewContext() (*LuaContext, error) {
 	c := &LuaContext {
 		c: ctx,
 	}
-	bindContext(c)
 	runtime.SetFinalizer(c, freeLuaContext)
 	return c, nil
 }
 
-var _env = "go-lua"
-func bindContext(ctx *LuaContext) {
-	c := ctx.c
-	C.pushGlobal(c) // [ global ]
-	pushString(c, _env) // [ global env ]
-	C.lua_pushlightuserdata(c, unsafe.Pointer(ctx)) // [ global env ctx ]
-	C.lua_rawset(c, -3) // [ global ] with global[env] = v
-	C.popN(c, 1) // [ ]
-}
-
-func getContext(c *C.lua_State) (*LuaContext, error) {
-	C.pushGlobal(c) // [ global ]
-	pushString(c, _env) // [ global env ]
-	C.lua_rawget(c, -2) // [ global result ]
-	res, err := fromLuaValue(c)
-	defer C.popN(c, 2) // [ ]
-
-	if err != nil {
-		return nil, err
-	}
-	if res == nil {
-		return nil, fmt.Errorf("no context")
-	}
-	if ctx, ok := res.(unsafe.Pointer); ok {
-		return (*LuaContext)(ctx), nil
-	}
-	return nil, fmt.Errorf("unknown type")
-}
-
 func freeLuaContext(ctx *LuaContext) {
-	// fmt.Printf("context freed\n")
-	ctx.env = nil
+	fmt.Printf("context freed\n")
 	c := ctx.c
+	ptrs.delPtrStore((uintptr(unsafe.Pointer(c))))
 	C.lua_close(c)
 }
 
@@ -87,7 +56,6 @@ func loadPreludeModules(ctx *C.lua_State) {
 }
 
 func (ctx *LuaContext) LoadScript(script string, env map[string]interface{}) (err error) {
-	ctx.env = env
 	c := ctx.c
 	setEnv(c, env)
 
@@ -102,7 +70,6 @@ func (ctx *LuaContext) LoadScript(script string, env map[string]interface{}) (er
 }
 
 func (ctx *LuaContext) LoadFile(scriptFile string, env map[string]interface{}) (err error) {
-	ctx.env = env
 	c := ctx.c
 	setEnv(c, env)
 
@@ -205,10 +172,10 @@ func (ctx *LuaContext) BindFunc(funcName string, funcVarPtr interface{}) (err er
 }
 
 func (ctx *LuaContext) BindFuncs(funcName2FuncVarPtr map[string]interface{}) (err error) {
-    for funcName, funcVarPtr := range funcName2FuncVarPtr {
-        if err = ctx.BindFunc(funcName, funcVarPtr); err != nil {
-            return
-        }
-    }
-    return
+	for funcName, funcVarPtr := range funcName2FuncVarPtr {
+		if err = ctx.BindFunc(funcName, funcVarPtr); err != nil {
+			return
+		}
+	}
+	return
 }

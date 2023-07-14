@@ -23,42 +23,36 @@ func pushGoFunc(ctx *C.lua_State, funcVar interface{}) (err error) {
 		return
 	}
 
-	pushWrappedGoFunc(ctx)
+	pushWrappedGoFunc(ctx, funcVar)
 	return
 }
 
-func getGoFuncValue(ctx *C.lua_State, funcName string) (funcPtr interface{}, err error) {
-	luaCtx, e := getContext(ctx)
-	if e != nil {
-		err = e
-		return
-	}
-	if len(luaCtx.env) == 0 {
-		err = fmt.Errorf("no env found")
-		return
-	}
-	fn, ok := luaCtx.env[funcName]
-	if !ok {
-		err = fmt.Errorf("func name %s not found", funcName)
-		return
-	}
-	funcPtr = fn
+func getPtrSotre(ctx *C.lua_State) (ptr *ptrStore) {
+	ptr = ptrs.getPtrStore(uintptr(unsafe.Pointer(ctx)))
 	return
 }
 
 //export goFuncBridge
 func goFuncBridge(ctx *C.lua_State) C.int {
 	// get pointer of Golang function attached to goFuncBridge
-	funcName := C.GoString(C.lua_tolstring(ctx, C.getUpvalueIdx(1), (*C.ulong)(unsafe.Pointer(nil))))
-	fn, err := getGoFuncValue(ctx, funcName)
-	if err != nil {
-		pushString(ctx, err.Error())
+	idx := int(C.lua_tointegerx(ctx, C.getUpvalueIdx(1), (*C.int)(unsafe.Pointer(nil))))
+	ptr := getPtrSotre(ctx)
+	fnPtr, ok := ptr.lookup(idx)
+	if !ok {
+		pushString(ctx, "not found")
 		C.lua_error(ctx)
 		return 1
 	}
+	fnVarPtr, ok := fnPtr.(*interface{})
+	if !ok {
+		pushString(ctx, "wrong type")
+		C.lua_error(ctx)
+		return 1
+	}
+	fn := *fnVarPtr
 	fnVal := reflect.ValueOf(fn)
 	if fnVal.Kind() != reflect.Func {
-		pushString(ctx, fmt.Sprintf("related env with %s is not a go function", funcName))
+		pushString(ctx, fmt.Sprintf("related env with idx %d is not a go function", idx))
 		C.lua_error(ctx)
 		return 1
 	}
@@ -99,10 +93,12 @@ func goFuncBridge(ctx *C.lua_State) C.int {
 	return 1
 }
 
-func pushWrappedGoFunc(ctx *C.lua_State) {
+func pushWrappedGoFunc(ctx *C.lua_State, fnVar interface{}) {
+	ptr := getPtrSotre(ctx)
+	idx := ptr.register(&fnVar)
+
 	// [ ... funcName]
-	C.lua_pushnil(ctx) // [ ... funcName nil ]
-	C.lua_copy(ctx, -2, -1) // [ ... funcName funcName ]
-	C.lua_pushcclosure(ctx, (C.lua_CFunction)(C.goFuncBridge), 1) // [ ... funcName goFuncBridge ] // with goFuncBridge upvalue = funcName
+	C.lua_pushinteger(ctx, C.lua_Integer(idx)) // [ ... funcName idx ]
+	C.lua_pushcclosure(ctx, (C.lua_CFunction)(C.goFuncBridge), 1) // [ ... funcName goFuncBridge ] // with goFuncBridge upvalue = idx
 }
 

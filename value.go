@@ -219,14 +219,13 @@ func pushStruct(ctx *C.lua_State, structVar reflect.Value) {
 	}
 	structT := structE.Type()
 
-	/*
 	if structE == structVar {
 		// struct is unaddressable, so make a copy of struct to an Elem of struct-pointer.
 		// NOTE: changes of the copied struct cannot effect the original one. it is recommended to use the pointer of struct.
 		structVar = reflect.New(structT) // make a struct pointer
 		structVar.Elem().Set(structE)    // copy the old struct
 		structE = structVar.Elem()       // structE is the copied struct
-	}*/
+	}
 
 	C.lua_createtable(ctx, 0, C.int(structT.NumField())) // [ obj ]
 	for i:=0; i<structT.NumField(); i++ {
@@ -240,7 +239,25 @@ func pushStruct(ctx *C.lua_State, structVar reflect.Value) {
 		lName := lowerFirst(name)
 		pushString(ctx, lName)            // [ obj lName ]
 		pushLuaValue(ctx, fv.Interface()) // [ obj lName fv ]
-		C.lua_rawset(ctx, -3) // [ obj ] with obj[lName] = fv
+		C.lua_rawset(ctx, -3)    // [ obj ] with obj[lName] = fv
+	}
+
+	pushStructMethods(ctx, structE, structT)
+	t := structVar.Type()
+	pushStructMethods(ctx, structVar, t)
+}
+
+func pushStructMethods(ctx *C.lua_State, structE reflect.Value, structT reflect.Type) {
+	for i:=0; i<structE.NumMethod(); i++ {
+		name := structT.Method(i).Name
+		fv := structE.Method(i)
+		if !fv.CanInterface() {
+			continue
+		}
+		lName := lowerFirst(name)
+		pushString(ctx, lName)          // [ obj lName ]
+		pushGoFunc(ctx, fv.Interface()) // [ obj lName fv ]
+		C.lua_rawset(ctx, -3)    // [ obj ] with obj[lName] = fv
 	}
 }
 
