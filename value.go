@@ -7,70 +7,7 @@ import (
 	"reflect"
 	"unsafe"
 	"fmt"
-	"strings"
 )
-
-func pushLuaValue(ctx *C.lua_State, v interface{}) {
-	if v == nil {
-		C.lua_pushnil(ctx)
-		return
-	}
-
-	vv := reflect.ValueOf(v)
-	switch vv.Kind() {
-	case reflect.Bool:
-		if v.(bool) {
-			C.lua_pushboolean(ctx, 1)
-		} else {
-			C.lua_pushboolean(ctx, 0)
-		}
-		return
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		C.lua_pushnumber(ctx, C.lua_Number(vv.Int()))
-		return
-	case reflect.Uint,reflect.Uint8,reflect.Uint16,reflect.Uint32,reflect.Uint64:
-		C.lua_pushnumber(ctx, C.lua_Number(vv.Uint()))
-		return
-	case reflect.Float32, reflect.Float64:
-		C.lua_pushnumber(ctx, C.lua_Number(vv.Float()))
-		return
-	case reflect.String:
-		pushString(ctx, v.(string))
-		return
-	case reflect.Slice:
-		t := vv.Type()
-		if t.Elem().Kind() == reflect.Uint8 {
-			pushString(ctx, string(v.([]byte)))
-			return
-		}
-		fallthrough
-	case reflect.Array:
-		pushArr(ctx, vv)
-		return
-	case reflect.Map:
-		pushObj(ctx, vv)
-		return
-	case reflect.Struct:
-		pushStruct(ctx, vv)
-		return
-	case reflect.Ptr:
-		if vv.Elem().Kind() == reflect.Struct {
-			pushStruct(ctx, vv)
-			return
-		}
-		pushLuaValue(ctx, vv.Elem().Interface())
-		return
-	case reflect.Func:
-		if err := pushGoFunc(ctx, v); err != nil {
-			C.lua_pushnil(ctx)
-		}
-		return
-	default:
-		// return fmt.Errorf("unsupported type %v", vv.Kind())
-		C.lua_pushnil(ctx)
-		return
-	}
-}
 
 func fromLuaValue(ctx *C.lua_State) (goVal interface{}, err error) {
 	var length C.size_t
@@ -91,7 +28,27 @@ func fromLuaValue(ctx *C.lua_State) (goVal interface{}, err error) {
 	case C.LUA_TTABLE:
 		return fromLuaTable(ctx)
 	// case C.LUA_TUSERDATA:
-	// case LUA_TFUNCTION:
+	case C.LUA_TFUNCTION:
+		targetV, isGoObj, e := getBoundTarget(ctx)
+		if e != nil {
+			err = e
+			return
+		}
+		if !isGoObj {
+			err = fmt.Errorf("unsupporting type")
+			return
+		}
+		switch vv := reflect.ValueOf(targetV); vv.Kind() {
+		case reflect.Slice, reflect.Array, reflect.Map, reflect.Struct:
+			goVal = targetV
+			return
+		case reflect.Ptr:
+			goVal = vv.Elem().Interface()
+			return
+		default:
+			err = fmt.Errorf("unknown type")
+			return
+		}
 	// case LUA_TTHREAD:
 	case C.LUA_TLIGHTUSERDATA:
 		goVal = (unsafe.Pointer)(C.lua_touserdata(ctx, -1))
@@ -163,108 +120,5 @@ FOR_MAP:
 		goVal = res
 	}
 	return
-}
-
-func pushString(ctx *C.lua_State, s string) {
-	var cstr *C.char
-	var sLen C.int
-	getStrPtrLen(&s, &cstr, &sLen)
-	C.lua_pushlstring(ctx, cstr, C.size_t(sLen))
-}
-
-func pushArr(ctx *C.lua_State, v reflect.Value) {
-	if v.IsNil() {
-		C.lua_createtable(ctx, 0, 0) // [ arr ]
-		return
-	}
-
-	l := v.Len()
-	C.lua_createtable(ctx, C.int(l), 0) // [ arr ]
-
-	for i:=0; i<l; i++ {
-		elm := v.Index(i).Interface()
-		pushLuaValue(ctx, elm) // [ arr elm ]
-		C.lua_rawseti(ctx, -2, C.lua_Integer(i+1)) // [ arr ] with arr[i+1] = elm
-	}
-}
-
-func pushObj(ctx *C.lua_State, v reflect.Value) {
-	if v.IsNil() {
-		C.lua_createtable(ctx, 0, 0) // [ obj ]
-		return
-	}
-
-	l := v.Len()
-	C.lua_createtable(ctx, 0, C.int(l)) // [ obj ]
-
-	mr := v.MapRange()
-	for mr.Next() {
-		k := mr.Key()
-		v := mr.Value()
-
-		pushLuaValue(ctx, k.Interface()) // [ obj k ]
-		pushLuaValue(ctx, v.Interface()) // [ obj k v ]
-
-		C.lua_rawset(ctx, -3) // [ obj ] with obj[k] = v
-	}
-}
-
-// struct
-func pushStruct(ctx *C.lua_State, structVar reflect.Value) {
-	var structE reflect.Value
-	if structVar.Kind() == reflect.Ptr {
-		structE = structVar.Elem()
-	} else {
-		structE = structVar
-	}
-	structT := structE.Type()
-
-	if structE == structVar {
-		// struct is unaddressable, so make a copy of struct to an Elem of struct-pointer.
-		// NOTE: changes of the copied struct cannot effect the original one. it is recommended to use the pointer of struct.
-		structVar = reflect.New(structT) // make a struct pointer
-		structVar.Elem().Set(structE)    // copy the old struct
-		structE = structVar.Elem()       // structE is the copied struct
-	}
-
-	C.lua_createtable(ctx, 0, C.int(structT.NumField())) // [ obj ]
-	for i:=0; i<structT.NumField(); i++ {
-		name := structT.Field(i).Name
-		fv := structE.FieldByName(name)
-
-		if !fv.CanInterface() {
-			continue
-		}
-
-		lName := lowerFirst(name)
-		pushString(ctx, lName)            // [ obj lName ]
-		pushLuaValue(ctx, fv.Interface()) // [ obj lName fv ]
-		C.lua_rawset(ctx, -3)    // [ obj ] with obj[lName] = fv
-	}
-
-	pushStructMethods(ctx, structE, structT)
-	t := structVar.Type()
-	pushStructMethods(ctx, structVar, t)
-}
-
-func pushStructMethods(ctx *C.lua_State, structE reflect.Value, structT reflect.Type) {
-	for i:=0; i<structE.NumMethod(); i++ {
-		name := structT.Method(i).Name
-		fv := structE.Method(i)
-		if !fv.CanInterface() {
-			continue
-		}
-		lName := lowerFirst(name)
-		pushString(ctx, lName)          // [ obj lName ]
-		pushGoFunc(ctx, fv.Interface()) // [ obj lName fv ]
-		C.lua_rawset(ctx, -3)    // [ obj ] with obj[lName] = fv
-	}
-}
-
-func lowerFirst(name string) string {
-	return strings.ToLower(name[:1]) + name[1:]
-}
-func upperFirst(name string) string {
-	return strings.ToUpper(name[:1]) + name[1:]
 }
 

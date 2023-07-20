@@ -4,31 +4,45 @@ import (
 	"sync"
 )
 
-type ptrStores struct {
-	lock *sync.Mutex
-	stores map[uintptr]*ptrStore
+type (
+	fnGetPtrStore func(ctx uintptr)(*ptrStore)
+	fnDelPtrStore func(ctx uintptr)
+)
+
+var (
+	getPtrStore fnGetPtrStore
+	delPtrStore fnDelPtrStore
+)
+
+func init() {
+	getPtrStore, delPtrStore = InitPtrStore()
 }
-var ptrs = &ptrStores{
-	lock: &sync.Mutex{},
-	stores: make(map[uintptr]*ptrStore),
-}
-func (p *ptrStores) getPtrStore(ctx uintptr) *ptrStore {
-	p.lock.Lock()
-	defer p.lock.Unlock()
-	if store, ok := p.stores[ctx]; ok {
+
+func InitPtrStore() (getPtrStore fnGetPtrStore, delPtrStore fnDelPtrStore) {
+	lock := &sync.Mutex{}
+	stores := make(map[uintptr]*ptrStore)
+
+	getPtrStore = func(ctx uintptr)(*ptrStore) {
+		lock.Lock()
+		defer lock.Unlock()
+		if store, ok := stores[ctx]; ok {
+			return store
+		}
+		store := newPtrStore()
+		stores[ctx] = store
 		return store
 	}
-	store := newPtrStore()
-	p.stores[ctx] = store
-	return store
-}
-func (p *ptrStores) delPtrStore(ctx uintptr) {
-	p.lock.Lock()
-	defer p.lock.Unlock()
-	if store, ok := p.stores[ctx]; ok {
-		store.clear()
+
+	delPtrStore = func(ctx uintptr) {
+		lock.Lock()
+		defer lock.Unlock()
+		if store, ok := stores[ctx]; ok {
+			store.clear()
+		}
+		delete(stores, ctx)
 	}
-	delete(p.stores, ctx)
+
+	return
 }
 
 type ptrStore struct {

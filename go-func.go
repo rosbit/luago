@@ -16,19 +16,8 @@ import (
 	"fmt"
 )
 
-func pushGoFunc(ctx *C.lua_State, funcVar interface{}) (err error) {
-	t := reflect.TypeOf(funcVar)
-	if t.Kind() != reflect.Func {
-		err = fmt.Errorf("funcVar expected to be a func")
-		return
-	}
-
+func pushGoFunc(ctx *C.lua_State, funcVar interface{}) {
 	pushWrappedGoFunc(ctx, funcVar)
-	return
-}
-
-func getPtrSotre(ctx *C.lua_State) (ptr *ptrStore) {
-	ptr = ptrs.getPtrStore(uintptr(unsafe.Pointer(ctx)))
 	return
 }
 
@@ -36,7 +25,7 @@ func getPtrSotre(ctx *C.lua_State) (ptr *ptrStore) {
 func goFuncBridge(ctx *C.lua_State) C.int {
 	// get pointer of Golang function attached to goFuncBridge
 	idx := int(C.lua_tointegerx(ctx, C.getUpvalueIdx(1), (*C.int)(unsafe.Pointer(nil))))
-	ptr := getPtrSotre(ctx)
+	ptr := getPtrStore(uintptr(unsafe.Pointer(ctx)))
 	fnPtr, ok := ptr.lookup(idx)
 	if !ok {
 		pushString(ctx, "not found")
@@ -89,12 +78,12 @@ func goFuncBridge(ctx *C.lua_State) C.int {
 	}
 
 	// 3. array or scalar
-	pushLuaValue(ctx, v)
+	pushLuaMetaValue(ctx, v)
 	return 1
 }
 
 func pushWrappedGoFunc(ctx *C.lua_State, fnVar interface{}) {
-	ptr := getPtrSotre(ctx)
+	ptr := getPtrStore(uintptr(unsafe.Pointer(ctx)))
 	idx := ptr.register(&fnVar)
 
 	// [ ... funcName]

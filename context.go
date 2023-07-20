@@ -46,13 +46,14 @@ func NewContext() (*LuaContext, error) {
 func freeLuaContext(ctx *LuaContext) {
 	// fmt.Printf("context freed\n")
 	c := ctx.c
-	ptrs.delPtrStore((uintptr(unsafe.Pointer(c))))
+	delPtrStore((uintptr(unsafe.Pointer(c))))
 	C.lua_close(c)
 }
 
 func loadPreludeModules(ctx *C.lua_State) {
 	// C.lua_gc(ctx, C.LUA_GCSTOP)  // stop GC while building state
 	C.luaL_openlibs(ctx)
+	registerGoObjMetatable(ctx)
 }
 
 func (ctx *LuaContext) LoadScript(script string, env map[string]interface{}) (err error) {
@@ -91,7 +92,7 @@ func setEnv(ctx *C.lua_State, env map[string]interface{}) {
 	for k, _ := range env {
 		v := env[k]
 		pushString(ctx, k)    // [ global k ]
-		pushLuaValue(ctx, v)  // [ global k v ]
+		pushLuaMetaValue(ctx, v)  // [ global k v ]
 		C.lua_rawset(ctx, -3) // [ global ] with global[k] = v
 	}
 }

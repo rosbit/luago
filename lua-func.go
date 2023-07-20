@@ -3,9 +3,7 @@ package lua
 // #include "lua.h"
 // static void popN(lua_State *L, int n);
 // static void pushGlobal(lua_State *L);
-// static int pCall (lua_State *L, int nargs, int nresults) {
-//	return lua_pcall(L, nargs, nresults, 0);
-// }
+// static int pCall(lua_State *L, int nargs, int nresults);
 import "C"
 import (
 	elutils "github.com/rosbit/go-embedding-utils"
@@ -34,7 +32,7 @@ func wrapFunc(ctx *C.lua_State, funcName string, helper *elutils.EmbeddingFuncHe
 		argc := 0
 		itArgs := helper.MakeGoFuncArgs(args)
 		for arg := range itArgs {
-			pushLuaValue(ctx, arg)
+			pushLuaMetaValue(ctx, arg)
 			argc += 1
 		}
 		// [ global function arg1 arg2 ... argN ]
@@ -84,7 +82,7 @@ func callFunc(ctx *C.lua_State, args ...interface{}) (res interface{}, err error
 
 	n := len(args)
 	for _, arg := range args {
-		pushLuaValue(ctx, arg)
+		pushLuaMetaValue(ctx, arg)
 	}
 	// [ obj function arg1 arg2 ... argN ]
 
