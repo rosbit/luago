@@ -72,16 +72,35 @@ func pushLuaMetaValue(ctx *C.lua_State, v interface{}) {
 	}
 }
 
+func getArrayKey(ctx *C.lua_State, vv reflect.Value) (key int, err error) {
+	// [ 1 ] ...
+	// [ 2 ] key
+	if C.lua_isinteger(ctx, 2) == 0 {
+		err = fmt.Errorf("integer expected for array")
+		return
+	}
+	key = int(C.lua_tointegerx(ctx, 2, (*C.int)(unsafe.Pointer(nil))))
+	l := vv.Len()
+	if key == 0 {
+		err = fmt.Errorf("key out of range")
+		return
+	}
+	if key < 0 {
+		key = l + key + 1
+	}
+	if key < 1 || key > l {
+		err = fmt.Errorf("key out of range")
+		return
+	}
+	key -= 1 // go is 0-based
+	return
+}
+
 func go_arr_get(ctx *C.lua_State, vv reflect.Value) C.int {
 	// [1]: ...
 	// [2]: key
-	if C.lua_isinteger(ctx, 2) == 0 {
-		C.lua_pushnil(ctx)
-		return 1
-	}
-	key := int(C.lua_tointegerx(ctx, 2, (*C.int)(unsafe.Pointer(nil))))
-	l := vv.Len()
-	if key < 0 || key >= l {
+	key, err := getArrayKey(ctx, vv)
+	if err != nil {
 		C.lua_pushnil(ctx)
 		return 1
 	}
@@ -98,12 +117,12 @@ func go_arr_set(ctx *C.lua_State, vv reflect.Value) C.int {
 	// [1]: ...
 	// [2]: key
 	// [3]: val
-	if C.lua_isinteger(ctx, 2) == 0 {
-		pushString(ctx, "integer expected")
+	key, err := getArrayKey(ctx, vv)
+	if err != nil {
+		pushString(ctx, err.Error())
 		C.lua_error(ctx)
 		return 1
 	}
-	key := int(C.lua_tointegerx(ctx, 2, (*C.int)(unsafe.Pointer(nil))))
 	goVal, err := fromLuaValue(ctx)
 	if err != nil {
 		es := err.Error()
@@ -112,11 +131,6 @@ func go_arr_set(ctx *C.lua_State, vv reflect.Value) C.int {
 		return 1
 	}
 
-	l := vv.Len()
-	if key < 0 || key >= l {
-		pushString(ctx, "key out of range")
-		return 1
-	}
 	dest := vv.Index(key)
 	if _, ok := goVal.(string); ok {
 		goVal = fmt.Sprintf("%s", goVal) // deep copy
