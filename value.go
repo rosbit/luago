@@ -24,18 +24,15 @@ func fromLuaValue(ctx *C.lua_State) (goVal interface{}, err error) {
 	case C.LUA_TSTRING:
 		s := C.lua_tolstring(ctx, -1, &length)
 		goVal = *(toString(s, int(length)))
+		// goVal = C.GoStringN(s, C.int(length))
 		return
 	case C.LUA_TTABLE:
 		return fromLuaTable(ctx)
-	// case C.LUA_TUSERDATA:
-	case C.LUA_TFUNCTION:
-		targetV, isGoObj, e := getBoundTarget(ctx)
-		if e != nil {
-			err = e
-			return
-		}
-		if !isGoObj {
-			err = fmt.Errorf("unsupporting type")
+	// case C.LUA_TFUNCTION:
+	case C.LUA_TUSERDATA:
+		targetV, ok := getTargetValue(ctx, -1)
+		if !ok {
+			err = fmt.Errorf("target not found")
 			return
 		}
 		switch vv := reflect.ValueOf(targetV); vv.Kind() {
@@ -80,6 +77,9 @@ func fromLuaTable(ctx *C.lua_State) (goVal interface{}, err error) {
 					C.popN(ctx, 2) // [ ... table ]
 					return
 				}
+				if _, ok := val.(string); ok {
+					fmt.Sprintf("%s", val) // deep copy
+				}
 				arr = append(arr, val)
 				res[fmt.Sprintf("%d", idx)] = val // also save to map
 				C.popN(ctx, 1) // [ ... table key ]
@@ -94,6 +94,9 @@ FOR_MAP:
 			C.popN(ctx, 2) // [ ... talbe ]
 			return
 		}
+		if _, ok := val.(string); ok {
+			val = fmt.Sprintf("%s", val) // deep copy
+		}
 		C.popN(ctx, 1) // [ ... table key ]
 		var key string
 		switch C.lua_type(ctx, -1) {
@@ -104,6 +107,7 @@ FOR_MAP:
 			var length C.size_t
 			s := C.lua_tolstring(ctx, -1, &length)
 			key = *(toString(s, int(length)))
+			// key = C.GoStringN(s, C.int(length))
 		default:
 			err = fmt.Errorf("key of string type expected")
 			C.popN(ctx, 1) // [ ... table ]

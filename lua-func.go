@@ -3,7 +3,10 @@ package lua
 // #include "lua.h"
 // static void popN(lua_State *L, int n);
 // static void pushGlobal(lua_State *L);
-// static int pCall(lua_State *L, int nargs, int nresults);
+// // static int pCall(lua_State *L, int nargs, int nresults);
+// static int pCall(lua_State *L, int nargs, int nresults) {
+//	return lua_pcall(L, nargs, nresults, 0);
+// }
 import "C"
 import (
 	elutils "github.com/rosbit/go-embedding-utils"
