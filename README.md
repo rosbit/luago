@@ -1,4 +1,4 @@
-# go-lua, makes lua be embedded easily
+# luago, makes lua be embedded easily
 
 [Lua](http://www.lua.org/) is a powerful, efficient, lightweight, embeddable scripting language.
 For most of developers who are not familiar with C language, it is very tedious to call lua\_pushxxx() and
@@ -6,16 +6,16 @@ lua\_pop() to make use of the power of Lua. Though there are some binding
 implementations of Lua for languages other than C, most of them inherit the
 methods of using API of Lua.
 
-`go-lua` is a package wrapping Lua and making it a **pragmatic embeddable** language.
-With some helper functions provided by `go-lua`, calling Golang functions from Lua, 
-or calling Lua functions from Golang are both very simple. So, with the help of `go-lua`, Lua
+`luago` is a package wrapping Lua and making it a **pragmatic embeddable** language.
+With some helper functions provided by `luago`, calling Golang functions from Lua, 
+or calling Lua functions from Golang are both very simple. So, with the help of `luago`, Lua
 can be embedded in Golang application easily.
 
 ### Install
 
 The package is fully go-getable, So, just type
 
-  `go get github.com/rosbit/go-lua`
+  `go get github.com/rosbit/luago`
 
 to install.
 
@@ -27,7 +27,7 @@ to install.
 package main
 
 import (
-  lua "github.com/rosbit/go-lua"
+  lua "github.com/rosbit/luago"
   "fmt"
 )
 
@@ -64,7 +64,7 @@ one can call the Lua function `add()` in Go code like the following:
 package main
 
 import (
-  lua "github.com/rosbit/go-lua"
+  lua "github.com/rosbit/luago"
   "fmt"
 )
 
@@ -108,7 +108,7 @@ make Golang functions as Lua global functions. There's the example:
 ```go
 package main
 
-import "github.com/rosbit/go-lua"
+import "github.com/rosbit/luago"
 
 // function to be called by Lua
 func adder(a1 float64, a2 float64) float64 {

@@ -1,4 +1,4 @@
-module github.com/rosbit/go-lua
+module github.com/rosbit/luago
 
 go 1.20
 
