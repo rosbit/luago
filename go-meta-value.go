@@ -420,7 +420,7 @@ func go_func_call(ctx *C.lua_State) C.int {
 	fnType := fnVal.Type()
 
 	// make args for Golang function
-	helper := elutils.NewGolangFuncHelperDiretly(fnVal, fnType)
+	helper := elutils.NewGolangFuncHelperDirectly(fnVal, fnType)
 	argc := int(C.lua_gettop(ctx)) - 1
 	// [ arg1 arg2 ... argN ]
 	getArgs := func(i int) interface{} {
