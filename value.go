@@ -28,7 +28,9 @@ func fromLuaValue(ctx *C.lua_State) (goVal interface{}, err error) {
 		return
 	case C.LUA_TTABLE:
 		return fromLuaTable(ctx)
-	// case C.LUA_TFUNCTION:
+	case C.LUA_TFUNCTION:
+		goVal = fromLuaFunc(ctx)
+		return
 	case C.LUA_TUSERDATA:
 		targetV, ok := getTargetValue(ctx, -1)
 		if !ok {
@@ -36,7 +38,7 @@ func fromLuaValue(ctx *C.lua_State) (goVal interface{}, err error) {
 			return
 		}
 		switch vv := reflect.ValueOf(targetV); vv.Kind() {
-		case reflect.Slice, reflect.Array, reflect.Map, reflect.Struct:
+		case reflect.Slice, reflect.Array, reflect.Map, reflect.Struct, reflect.Func:
 			goVal = targetV
 			return
 		case reflect.Ptr:
