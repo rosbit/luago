@@ -36,6 +36,29 @@ func wrapFunc(ctx *C.lua_State, funcName string, helper *elutils.EmbeddingFuncHe
 	}
 }
 
+func collectFuncResult(ctx *C.lua_State, nOut int) (goVal interface{}, err error) {
+	// [ some-obj o1 o2 .. oN ]
+	switch nOut {
+	case 0:
+	case 1:
+		goVal, err = fromLuaValue(ctx)
+	default:
+		res := make([]interface{}, nOut)
+		for i:=0; i<nOut; i++ {
+			C.lua_pushnil(ctx) // [ some-obj o1 o2 .. oN nil ]
+			C.lua_copy(ctx, C.int(i - nOut - 1), -1) // [ some-obj o1 o2 .. oN oI]
+			res[i], err = fromLuaValue(ctx)
+			C.popN(ctx, 1) // [ some-obj o1 o2 .. oN ]
+			if err != nil {
+				break
+			}
+		}
+		goVal = res
+	}
+	C.popN(ctx, C.int(nOut+1)) // []
+	return
+}
+
 // called by wrapFunc() and fromLuaFunc::bindGoFunc
 func callLuaFuncFromGo(ctx *C.lua_State, helper *elutils.EmbeddingFuncHelper, args []reflect.Value)  (results []reflect.Value) {
 	// [ some-obj function ]
@@ -64,6 +87,7 @@ func callLuaFuncFromGo(ctx *C.lua_State, helper *elutils.EmbeddingFuncHelper, ar
 	}
 
 	// [ some-obj o1 o2 .. oN ]
+	/*
 	switch nOut {
 	case 0:
 	case 1:
@@ -82,6 +106,8 @@ func callLuaFuncFromGo(ctx *C.lua_State, helper *elutils.EmbeddingFuncHelper, ar
 		goVal = res
 	}
 	C.popN(ctx, C.int(nOut+1)) // []
+	*/
+	goVal, err = collectFuncResult(ctx, nOut)
 
 OUT:
 	// convert result to golang
@@ -109,6 +135,7 @@ func callFunc(ctx *C.lua_State, args ...interface{}) (res interface{}, err error
 	// [ obj o1 o2 ... oN ]
 	topIdx := int(C.lua_gettop(ctx))
 	nOut := topIdx - objIdx
+	/*
 	switch nOut {
 	case 0:
 	case 1:
@@ -127,6 +154,8 @@ func callFunc(ctx *C.lua_State, args ...interface{}) (res interface{}, err error
 		res = arr
 	}
 	C.popN(ctx, C.int(nOut+1)) // [ ]
+	*/
+	res, err = collectFuncResult(ctx, nOut)
 	return
 }
 

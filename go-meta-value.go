@@ -53,7 +53,7 @@ func pushLuaMetaValue(ctx *C.lua_State, v interface{}) {
 			return
 		}
 		fallthrough
-	case reflect.Array, reflect.Map, reflect.Struct:
+	case reflect.Array, reflect.Map, reflect.Struct, reflect.Interface:
 		pushValueWithMetatable(ctx, v, goObjMeta)
 		return
 	case reflect.Ptr:
@@ -195,7 +195,7 @@ func go_map_set(ctx *C.lua_State, vv reflect.Value) C.int {
 }
 
 func go_struct_get(ctx *C.lua_State, structVar reflect.Value) C.int {
-	// [2]: ...
+	// [1]: ...
 	// [2]: key
 	if C.lua_isstring(ctx, 2) == 0 {
 		C.lua_pushnil(ctx)
@@ -297,6 +297,24 @@ func go_struct_set(ctx *C.lua_State, vv reflect.Value) C.int {
 	return 0
 }
 
+func go_interface_get(ctx *C.lua_State, vv reflect.Value) C.int {
+	// [1]: ...
+	// [2]: key
+	if C.lua_isstring(ctx, 2) == 0 {
+		C.lua_pushnil(ctx)
+		return 1
+	}
+	key := C.GoString(C.lua_tolstring(ctx, 2, (*C.ulong)(unsafe.Pointer(nil))))
+	name := upperFirst(key)
+	fv := vv.MethodByName(name)
+	if !fv.IsValid() || !fv.CanInterface() {
+		C.lua_pushnil(ctx)
+		return 1
+	}
+	pushValueWithMetatable(ctx, fv.Interface(), goFuncMeta)
+	return 1
+}
+
 func getTargetIdx(ctx *C.lua_State, targetIdx C.int) (idx uint32) {
 	p := (*uint32)(C.lua_topointer(ctx, targetIdx))
 	idx = *p
@@ -339,6 +357,8 @@ func go_obj_get(ctx *C.lua_State) C.int {
 		return go_map_get(ctx, vv)
 	case reflect.Struct, reflect.Ptr:
 		return go_struct_get(ctx, vv)
+	case reflect.Interface:
+		return go_interface_get(ctx, vv)
 	default:
 		C.lua_pushnil(ctx)
 		return 1
@@ -412,7 +432,7 @@ func go_obj_len(ctx *C.lua_State) C.int {
 //export go_func_call
 func go_func_call(ctx *C.lua_State) C.int {
 	// [ 1 ] go_meta_proxy
-	// [ 2 - top ] args
+	// [ 2 ~ top ] args
 	v, ok := getTargetValue(ctx, 1)
 	if !ok {
 		pushString(ctx, "not found")

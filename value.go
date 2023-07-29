@@ -38,11 +38,9 @@ func fromLuaValue(ctx *C.lua_State) (goVal interface{}, err error) {
 			return
 		}
 		switch vv := reflect.ValueOf(targetV); vv.Kind() {
-		case reflect.Slice, reflect.Array, reflect.Map, reflect.Struct, reflect.Func:
+		case reflect.Slice, reflect.Array, reflect.Map, reflect.Struct, reflect.Func,
+		reflect.Ptr, reflect.Interface:
 			goVal = targetV
-			return
-		case reflect.Ptr:
-			goVal = vv.Elem().Interface()
 			return
 		default:
 			err = fmt.Errorf("unknown type")
