@@ -4,10 +4,12 @@ package lua
 // #include "lauxlib.h"
 // static void popN(lua_State *L, int n);
 // static void pushGlobal(lua_State *L);
-// // static int pCall(lua_State *L, int nargs, int nresults);
 // static int pCall(lua_State *L, int nargs, int nresults) {
 //	return lua_pcall(L, nargs, nresults, 0);
 // }
+// // static int gc(lua_State *L, int what) {
+// // return lua_gc(L, what);
+// // }
 import "C"
 import (
 	elutils "github.com/rosbit/go-embedding-utils"
@@ -61,6 +63,7 @@ func collectFuncResult(ctx *C.lua_State, nOut int) (goVal interface{}, err error
 
 // called by wrapFunc() and fromLuaFunc::bindGoFunc
 func callLuaFuncFromGo(ctx *C.lua_State, helper *elutils.EmbeddingFuncHelper, args []reflect.Value)  (results []reflect.Value) {
+	// defer C.gc(ctx, C.LUA_GCCOLLECT)
 	// [ some-obj function ]
 
 	// push Lua args
@@ -87,26 +90,6 @@ func callLuaFuncFromGo(ctx *C.lua_State, helper *elutils.EmbeddingFuncHelper, ar
 	}
 
 	// [ some-obj o1 o2 .. oN ]
-	/*
-	switch nOut {
-	case 0:
-	case 1:
-		goVal, err = fromLuaValue(ctx)
-	default:
-		res := make([]interface{}, nOut)
-		for i:=0; i<nOut; i++ {
-			C.lua_pushnil(ctx) // [ some-obj o1 o2 .. oN nil ]
-			C.lua_copy(ctx, C.int(i - nOut - 1), -1) // [ some-obj o1 o2 .. oN oI]
-			res[i], err = fromLuaValue(ctx)
-			C.popN(ctx, 1) // [ some-obj o1 o2 .. oN ]
-			if err != nil {
-				break
-			}
-		}
-		goVal = res
-	}
-	C.popN(ctx, C.int(nOut+1)) // []
-	*/
 	goVal, err = collectFuncResult(ctx, nOut)
 
 OUT:
@@ -135,26 +118,6 @@ func callFunc(ctx *C.lua_State, args ...interface{}) (res interface{}, err error
 	// [ obj o1 o2 ... oN ]
 	topIdx := int(C.lua_gettop(ctx))
 	nOut := topIdx - objIdx
-	/*
-	switch nOut {
-	case 0:
-	case 1:
-		res, err = fromLuaValue(ctx)
-	default:
-		arr := make([]interface{}, nOut)
-		for i:=0; i<nOut; i++ {
-			C.lua_pushnil(ctx) // [ obj o1 o2 .. oN nil ]
-			C.lua_copy(ctx, C.int(i - nOut - 1), -1) // [ obj o1 o2 .. oN oI]
-			arr[i], err = fromLuaValue(ctx)
-			C.popN(ctx, 1) // [ obj o1 o2 .. oN ]
-			if err != nil {
-				break
-			}
-		}
-		res = arr
-	}
-	C.popN(ctx, C.int(nOut+1)) // [ ]
-	*/
 	res, err = collectFuncResult(ctx, nOut)
 	return
 }

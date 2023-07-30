@@ -4,7 +4,6 @@ package lua
 // #include "lualib.h"
 // #include "lauxlib.h"
 // static void popN(lua_State *L, int n);
-// static int getUpvalueIdx(int i);
 // extern int go_obj_get(lua_State *ctx);
 // extern int go_obj_set(lua_State *ctx);
 // extern int go_obj_len(lua_State *ctx);
@@ -315,24 +314,30 @@ func go_interface_get(ctx *C.lua_State, vv reflect.Value) C.int {
 	return 1
 }
 
-func getTargetIdx(ctx *C.lua_State, targetIdx C.int) (idx uint32) {
-	p := (*uint32)(C.lua_topointer(ctx, targetIdx))
-	idx = *p
+func getTargetIdx(ctx *C.lua_State, targetIdx C.int) (idx uint32, ok bool) {
+	p := (*uint32)(C.lua_touserdata(ctx, targetIdx))
+	if p != nil {
+		idx = *p
+		ok = true
+	}
 	return
 }
 
 func getTargetValue(ctx *C.lua_State, targetIdx C.int) (v interface{}, ok bool) {
 	// ....
-	idx := getTargetIdx(ctx, targetIdx)
+	var idx uint32
+	if idx, ok = getTargetIdx(ctx, targetIdx); !ok {
+		return
+	}
 
 	ptr := getPtrStore(uintptr(unsafe.Pointer(ctx)))
 	vPtr, o := ptr.lookup(idx)
 	if !o {
+		ok = false
 		return
 	}
 	if vv, o := vPtr.(*interface{}); o {
 		v = *vv
-		ok = true
 	}
 	return
 }
@@ -491,10 +496,11 @@ func go_func_call(ctx *C.lua_State) C.int {
 //export go_obj_free
 func go_obj_free(ctx *C.lua_State) C.int {
 	// [ 1 ] go_meta_proxy
-	// fmt.Printf("---go_obj_free called\n")
-	idx := getTargetIdx(ctx, 1)
-	ptr := getPtrStore(uintptr(unsafe.Pointer(ctx)))
-	ptr.remove(idx)
+	if idx, ok := getTargetIdx(ctx, 1); ok {
+		// fmt.Printf("---go_obj_free called\n")
+		ptr := getPtrStore(uintptr(unsafe.Pointer(ctx)))
+		ptr.remove(idx)
+	}
 	return 0
 }
 

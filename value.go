@@ -4,7 +4,7 @@ package lua
 // static void popN(lua_State *L, int n);
 import "C"
 import (
-	"reflect"
+	// "reflect"
 	"unsafe"
 	"fmt"
 )
@@ -37,15 +37,8 @@ func fromLuaValue(ctx *C.lua_State) (goVal interface{}, err error) {
 			err = fmt.Errorf("target not found")
 			return
 		}
-		switch vv := reflect.ValueOf(targetV); vv.Kind() {
-		case reflect.Slice, reflect.Array, reflect.Map, reflect.Struct, reflect.Func,
-		reflect.Ptr, reflect.Interface:
-			goVal = targetV
-			return
-		default:
-			err = fmt.Errorf("unknown type")
-			return
-		}
+		goVal = targetV
+		return
 	// case LUA_TTHREAD:
 	case C.LUA_TLIGHTUSERDATA:
 		goVal = (unsafe.Pointer)(C.lua_touserdata(ctx, -1))
