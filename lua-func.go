@@ -18,7 +18,7 @@ import (
 	"fmt"
 )
 
-func bindFunc(ctx *C.lua_State, funcName string, funcVarPtr interface{}) (err error) {
+func bindFunc(ctx *LuaContext, funcName string, funcVarPtr interface{}) (err error) {
 	helper, e := elutils.NewEmbeddingFuncHelper(funcVarPtr)
 	if e != nil {
 		err = e
@@ -28,13 +28,17 @@ func bindFunc(ctx *C.lua_State, funcName string, funcVarPtr interface{}) (err er
 	return
 }
 
-func wrapFunc(ctx *C.lua_State, funcName string, helper *elutils.EmbeddingFuncHelper) elutils.FnGoFunc {
+func wrapFunc(ctx *LuaContext, funcName string, helper *elutils.EmbeddingFuncHelper) elutils.FnGoFunc {
 	return func(args []reflect.Value) (results []reflect.Value) {
-		// reload the function when calling go-function
-		C.pushGlobal(ctx) // [ global ]
-		getVar(ctx, funcName) // [ global function ]
+		ctx.mu.Lock()
+		defer ctx.mu.Unlock()
 
-		return callLuaFuncFromGo(ctx, helper, args)
+		c := ctx.c
+		// reload the function when calling go-function
+		C.pushGlobal(c) // [ global ]
+		getVar(c, funcName) // [ global function ]
+
+		return callLuaFuncFromGo(c, helper, args)
 	}
 }
 

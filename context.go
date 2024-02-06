@@ -23,11 +23,13 @@ import (
 	"reflect"
 	"unsafe"
 	"fmt"
+	"sync"
 	"runtime"
 )
 
 type LuaContext struct {
 	c *C.lua_State
+	mu *sync.Mutex
 }
 
 func NewContext() (*LuaContext, error) {
@@ -38,6 +40,7 @@ func NewContext() (*LuaContext, error) {
 	loadPreludeModules(ctx)
 	c := &LuaContext {
 		c: ctx,
+		mu: &sync.Mutex{},
 	}
 	runtime.SetFinalizer(c, freeLuaContext)
 	return c, nil
@@ -56,6 +59,9 @@ func loadPreludeModules(ctx *C.lua_State) {
 }
 
 func (ctx *LuaContext) LoadScript(script string, env map[string]interface{}) (err error) {
+	ctx.mu.Lock()
+	defer ctx.mu.Unlock()
+
 	c := ctx.c
 	setEnv(c, env)
 
@@ -70,6 +76,9 @@ func (ctx *LuaContext) LoadScript(script string, env map[string]interface{}) (er
 }
 
 func (ctx *LuaContext) LoadFile(scriptFile string, env map[string]interface{}) (err error) {
+	ctx.mu.Lock()
+	defer ctx.mu.Unlock()
+
 	c := ctx.c
 	setEnv(c, env)
 
@@ -107,6 +116,9 @@ func getVar(ctx *C.lua_State, name string) (exsiting bool) {
 }
 
 func (ctx *LuaContext) GetGlobal(name string) (res interface{}, err error) {
+	ctx.mu.Lock()
+	defer ctx.mu.Unlock()
+
 	c := ctx.c
 	C.pushGlobal(c) // [ global ]
 	defer C.popN(c, 2) // [ ]
@@ -119,6 +131,9 @@ func (ctx *LuaContext) GetGlobal(name string) (res interface{}, err error) {
 }
 
 func (ctx *LuaContext) CallFunc(funcName string, args ...interface{}) (res interface{}, err error) {
+	ctx.mu.Lock()
+	defer ctx.mu.Unlock()
+
 	c := ctx.c
 	C.pushGlobal(c) // [ global ]
 
@@ -152,6 +167,9 @@ func (ctx *LuaContext) BindFunc(funcName string, funcVarPtr interface{}) (err er
 		return
 	}
 
+	ctx.mu.Lock()
+	defer ctx.mu.Unlock()
+
 	c := ctx.c
 
 	C.pushGlobal(c) // [ global ]
@@ -168,7 +186,7 @@ func (ctx *LuaContext) BindFunc(funcName string, funcVarPtr interface{}) (err er
 	}
 
 	C.popN(c, 2) // [ ] function will be restored when calling
-	return bindFunc(c, funcName, funcVarPtr)
+	return bindFunc(ctx, funcName, funcVarPtr)
 }
 
 func (ctx *LuaContext) BindFuncs(funcName2FuncVarPtr map[string]interface{}) (err error) {
