@@ -281,7 +281,7 @@ func go_struct_set(ctx *C.lua_State, vv reflect.Value) C.int {
 	name := upperFirst(key)
 	fv := structE.FieldByName(name)
 	if !fv.IsValid() {
-		pushString(ctx, "name not found")
+		pushString(ctx, fmt.Sprintf("%s not found", key))
 		C.lua_error(ctx)
 		return 1
 	}
