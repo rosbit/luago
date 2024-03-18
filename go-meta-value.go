@@ -15,6 +15,7 @@ import (
 	"reflect"
 	"unsafe"
 	"fmt"
+	"os"
 	"strings"
 )
 
@@ -281,7 +282,13 @@ func go_struct_set(ctx *C.lua_State, vv reflect.Value) C.int {
 	name := upperFirst(key)
 	fv := structE.FieldByName(name)
 	if !fv.IsValid() {
-		pushString(ctx, fmt.Sprintf("%s not found", key))
+		// pushString(ctx, fmt.Sprintf("%s not found", key))
+		msg := fmt.Sprintf("------\nkey \"%s\" not found", key)
+		var cMsg *C.char
+		getStrPtr(&msg, &cMsg)
+		C.luaL_traceback(ctx, ctx, cMsg, 1)
+		C.fputs(C.lua_tolstring(ctx, -1, (*C.ulong)(unsafe.Pointer(nil))), C.stderr)
+		fmt.Fprintf(os.Stderr, "\n------\n")
 		C.lua_error(ctx)
 		return 1
 	}
